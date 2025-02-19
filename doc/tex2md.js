@@ -10,12 +10,15 @@ const commands = {};
 「\|array|」
 */
 commands["\\tt"] = "";
+commands["\\copyright"] = "©";
+
 const repcom = (s) => {
   let state = 0;
   const res = [];
   let cmd = null;
   let param = null;
-  for (const c of s) {
+  for (let i = 0; i < s.length + 1; i++) {
+    const c = s[i];
     if (state == 0) {
       if (c == "\\") {
         state = 1;
@@ -24,12 +27,15 @@ const repcom = (s) => {
         res.push(c);
       }
     } else if (state == 1) {
-      if (c == "|") {
+      if (cmd == "" && c == "\\") {
+        res.push("\\");
+        state = 0;
+      } else if (cmd == "" && c == "|") {
         state = 2;
       } else if (c == "{") {
         state = 3;
         param = "";
-      } else if (c == " " || c == "\n") {
+      } else if (c == " " || c == "\n" || c === undefined) {
         const w = commands["\\" + cmd];
         //console.log("CMD", cmd, "WW", w)
         if (w) {
@@ -69,7 +75,7 @@ const parseWord = (s) => {
   return repcom(s);
 };
 
-const idx = [0, 0, 0, 0]; // chapter, section, subsection, subsubsection
+const idx = ['0'.charCodeAt(0), 0, 0, 0]; // chapter, section, subsection, subsubsection
 
 const text2md = async (fn) => {
   const ss = (await Deno.readTextFile(fn)).split("\n");
@@ -86,24 +92,27 @@ const text2md = async (fn) => {
         const name = s.substring(9, s.indexOf("}"));
         const md = await text2md(name + ".tex");
         res.push(md);
+      } else if (s.startsWith("\\author{")) {
+        const author = s.substring("\\author{".length, s.indexOf("}"));
+        res.push("- 著書: " + repcom(author));
       } else if (s.startsWith("\\title{")) {
         const title = s.substring("\\title{".length, s.indexOf("}"));
         res.push("# " + repcom(title));
       } else if (s.startsWith("\\chapter{")) {
         const title = s.substring("\\chapter{".length, s.indexOf("}"));
-        res.push("## " + ++idx[0] + ". " + repcom(title));
+        res.push("## " + (idx[0] < 'A'.charCodeAt(0) ? "" : "付録 ") + String.fromCharCode(++idx[0]) + ". " + repcom(title));
         idx[1] = 0;
       } else if (s.startsWith("\\section{")) {
         const title = s.substring("\\section{".length, s.indexOf("}"));
-        res.push("### " + idx[0] + "." + ++idx[1] + ". " + repcom(title));
+        res.push("### " + String.fromCharCode(idx[0]) + "." + ++idx[1] + ". " + repcom(title));
         idx[2] = 0;
       } else if (s.startsWith("\\subsection{")) {
         const title = s.substring("\\subsection{".length, s.indexOf("}"));
-        res.push("#### " + idx[0] + "." + idx[1] + "." + ++idx[2] + ". " + repcom(title));
+        res.push("#### " + String.fromCharCode(idx[0]) + "." + idx[1] + "." + ++idx[2] + ". " + repcom(title));
         idx[3] = 0;
       } else if (s.startsWith("\\subsubsection{")) {
         const title = s.substring("\\subsubsection{".length, s.indexOf("}"));
-        res.push("##### " + idx[0] + "." + idx[1] + "." + idx[2] + "." + ++idx[3] + ". " + repcom(title));
+        res.push("##### " + String.fromCharCode(idx[0]) + "." + idx[1] + "." + idx[2] + "." + ++idx[3] + ". " + repcom(title));
       } else if (s.startsWith("\\newcommand{")) {
         const end = s.indexOf("}");
         const name = s.substring("\\newcommand{".length, end);
@@ -116,6 +125,8 @@ const text2md = async (fn) => {
       } else if (s == "\\begin{verbatim}") {
         res.push("```");
         state = 1;
+      } else if (s == "\\appendix") {
+        idx[0] = 'A'.charCodeAt(0) - 1;
       } else if (s.startsWith("\\")) {
       } else {
         s = repcom(s);
